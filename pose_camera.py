@@ -25,34 +25,6 @@ import gstreamer
 
 from pose_engine import PoseEngine
 
-
-################################
-import pyrealsense2 as rs
-import cv2
-# Create a pipeline
-pipeline = rs.pipeline()
-
-#Create a config and configure the pipeline to stream
-#  different resolutions of color and depth streams
-config = rs.config()
-config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
-config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
-
-# Start streaming
-profile = pipeline.start(config)
-
-# Getting the depth sensor's depth scale (see rs-align example for explanation)
-depth_sensor = profile.get_device().first_depth_sensor()
-depth_scale = depth_sensor.get_depth_scale()
-print("Depth Scale is: " , depth_scale)
-
-# Create an align object
-# rs.align allows us to perform alignment of depth frames to others frames
-# The "align_to" is the stream type to which we plan to align depth frames.
-align_to = rs.stream.color
-align = rs.align(align_to)
-#################################
- 
 EDGES = (
     ('nose', 'left eye'),
     ('nose', 'right eye'),
@@ -84,23 +56,7 @@ def shadow_text(dwg, x, y, text, font_size=16):
 
 
 def draw_pose(dwg, pose, src_size, inference_box, color='yellow', threshold=0.2):
-
-#################################
-    global pipeline 
-    frames = pipeline.wait_for_frames()
-    # frames.get_depth_frame() is a 640x360 depth image
-
-    # Align the depth frame to color frame
-    aligned_frames = align.process(frames)
-
-    # Get aligned frames
-    aligned_depth_frame = aligned_frames.get_depth_frame() # aligned_depth_frame is a 640x480 depth image
-    color_frame = aligned_frames.get_color_frame()
-
-    # Validate that both frames are valid
-    if not aligned_depth_frame or not color_frame:
-        print("invalid frames")
-#################################
+    print(type(inference_box))
     box_x, box_y, box_w, box_h = inference_box
     scale_x, scale_y = src_size[0] / box_w, src_size[1] / box_h
     xys = {}
@@ -111,10 +67,9 @@ def draw_pose(dwg, pose, src_size, inference_box, color='yellow', threshold=0.2)
         kp_x = int((keypoint.yx[1] - box_x) * scale_x)
 
         xys[label] = (kp_x, kp_y)
-        dwg.add(dwg.circle(center=(int(kp_x), int(kp_y)), r=5,fill='cyan', fill_opacity=keypoint.score, stroke=color))
-        dwg.add(dwg.text(str(aligned_depth_frame[int(kp_x)][int(kp_y)]), insert=(int(kp_x),int(kp_y) ), fill='red',font_size=10, style='font-family:sans-serif'))
+        dwg.add(dwg.circle(center=(int(kp_x), int(kp_y)), r=5,
+                           fill='cyan', fill_opacity=keypoint.score, stroke=color))
 
-       
     for a, b in EDGES:
         if a not in xys or b not in xys: continue
         ax, ay = xys[a]
@@ -177,13 +132,13 @@ def main():
     sum_inference_time = 0
     ctr = 0
     fps_counter  = avg_fps_counter(30)
+
     def run_inference(engine, input_tensor):
         return engine.run_inference(input_tensor)
 
     def render_overlay(engine, output, src_size, inference_box):
         nonlocal n, sum_process_time, sum_inference_time, fps_counter
 
-        svg_canvas = svgwrite.Drawing('', size=src_size)
         start_time = time.monotonic()
         outputs, inference_time = engine.ParseOutput(output)
         end_time = time.monotonic()
